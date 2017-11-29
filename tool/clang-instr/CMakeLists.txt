@@ -1,4 +1,4 @@
-set(TOOL_BIN_PATH ${CMAKE_BINARY_DIR}/tool)
+set(TOOL_BIN_PATH ${CMAKE_BINARY_DIR}/tool/llvm-instr)
 set(TOOL_LIB_PATH ${CMAKE_BINARY_DIR}/lib/Runtime)
 configure_file(clang-instr.py.in 
   ${CMAKE_CURRENT_BINARY_DIR}/clang-instr.py
