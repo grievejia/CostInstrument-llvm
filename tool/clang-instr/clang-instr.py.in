@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+
+import argparse
+import sys
+import subprocess
+import tempfile
+from pathlib import Path
+import logging
+
+TOOL_BIN_DIR = '@TOOL_BIN_PATH@'
+TOOL_LIB_DIR = '@TOOL_LIB_PATH@'
+DEFAULT_LLVM_INSTR_PATH = TOOL_BIN_DIR + '/llvm-instr'
+DEFAULT_RUNTIME_LIB_PATH = TOOL_LIB_DIR + '/libCostInstrRuntime.a'
+
+def is_clang_source(path):
+    return path.suffix in ['.c', '.cxx', '.cc', '.cpp']
+
+def is_llvm_source(path):
+    return path.suffix in ['.bc', '.ll']
+
+def is_binary(path):
+    return path.suffix in ['.o', '.so', '.dylib', '.a', '']
+
+def check_files(input_paths):
+    for path in input_paths:
+        if not (path.exists() and path.is_file()):
+            raise ValueError('File {} does not exist'.format(path))
+        elif not (is_clang_source(path)  or is_llvm_source(path) or is_binary(path)):
+            raise ValueError('File type "{}" not recognized for input file "{}"'.format(path.suffix, path))
+
+def compile_to_llvm(inputPath, tempdir):
+    logging.info('Compiling {} to LLVM IR'.format(inputPath))
+    output_name = '{}/{}.bc'.format(tempdir, inputPath.name)
+    cmd = 'clang -emit-llvm -c -o {} {}'.format(output_name, inputPath)
+    logging.debug('[CMD] {}'.format(cmd))
+    cmd_result = subprocess.run(cmd, shell=True, check=True)
+    return Path(output_name)
+
+def run_llvm_instr(inputPath, llvm_instr, blacklist, tempdir):
+    logging.info('Instrumenting {}'.format(inputPath))
+    output_name = '{}/{}.instr.bc'.format(tempdir, inputPath.stem)
+    cmd = '{} -o {} {}'.format(llvm_instr, output_name, inputPath)
+    if blacklist is not None:
+        cmd += ' -b {}'.format(blacklist)
+    logging.debug('[CMD] {}'.format(cmd))
+    cmd_result = subprocess.run(cmd, shell=True, check=True)
+    return Path(output_name)
+
+def link_files(inputPaths, outputPath):
+    logging.info('Linking final executables...')
+    cmd = 'clang {}'.format(' '.join([str(x) for x in inputPaths]))
+    if outputPath is not None:
+        cmd += ' -o {}'.format(outputPath)
+    logging.debug('[CMD] {}'.format(cmd))
+    cmd_result = subprocess.run(cmd, shell=True, check=True)
+
+def run_clang_instr(args):
+    with tempfile.TemporaryDirectory() as tempdir:
+        logging.debug('Working dir = {}'.format(tempdir))
+        ir_paths = list()
+        obj_paths = [args.runtime]
+        for filePath in args.input:
+            if is_clang_source(filePath):
+                ir_path = compile_to_llvm(filePath, tempdir)
+                ir_paths.append(ir_path)
+            elif is_llvm_source(filePath):
+                ir_paths.append(filePath)
+            else:
+                obj_paths.append(filePath)
+        instrumented_ir_paths = [run_llvm_instr(ir_path, args.llvm_instr, args.blacklist, tempdir) for ir_path in ir_paths]
+        link_files(obj_paths + instrumented_ir_paths, args.output)
+
+def main():
+    parser = argparse.ArgumentParser(description='Clang instrument driver')
+    parser.add_argument('input', metavar='FILE', type=Path, nargs='+',
+                    help='input file to compile')
+    parser.add_argument('-o', '--output', metavar='OUT', type=Path, help='output file name')
+    parser.add_argument('-b', '--blacklist', metavar='PATTERN', help='Function name blacklist patterns (comma separated)')
+    parser.add_argument('-r', '--runtime', metavar='RUNTIME', type=Path,
+                        help='Specify where the runtime library is. Default to ' + DEFAULT_RUNTIME_LIB_PATH,
+                        default=Path(DEFAULT_RUNTIME_LIB_PATH))
+    parser.add_argument('-l', '--llvm-instr', metavar='INSTRUMENTER', type=Path,
+                        help='Specify the location of llvm-instr. Default to ' + DEFAULT_LLVM_INSTR_PATH,
+                        default=Path(DEFAULT_LLVM_INSTR_PATH))
+    parser.add_argument('-d', '--debug',
+                        help="Print lots of debugging statements",
+                        action="store_const", dest="loglevel", const=logging.DEBUG,
+                        default=logging.WARNING)
+    parser.add_argument('-v', '--verbose',
+                        help="Be verbose",
+                        action="store_const", dest="loglevel", const=logging.INFO,
+    )
+    args = parser.parse_args()
+
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=args.loglevel)
+    try:
+        check_files(args.input + [args.runtime, args.llvm_instr])
+        run_clang_instr(args)
+    except ValueError as e:
+        print('[ERROR] {}'.format(e), file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print('[EXTERNAL ERROR] {}'.format(e), file=sys.stderr)
+
+if __name__ == '__main__':
+    main()

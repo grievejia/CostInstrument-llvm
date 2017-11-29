@@ -31,7 +31,9 @@ void instrumentLoopHeader(LoopInfo& loopInfo, const DynamicHooks& hooks) {
 
 } // namespace
 
-InstrumentPass::InstrumentPass() : ModulePass(ID) {}
+InstrumentPass::InstrumentPass() : InstrumentPass(NameBlacklist()) {}
+InstrumentPass::InstrumentPass(NameBlacklist blacklist)
+    : ModulePass(ID), blacklist(blacklist) {}
 
 void InstrumentPass::getAnalysisUsage(AnalysisUsage& usage) const {
   usage.addRequired<LoopInfoWrapperPass>();
@@ -42,6 +44,8 @@ bool InstrumentPass::instrumentFunction(Function& func,
   if (func.isDeclaration())
     return false;
   if (hooks.isHook(func))
+    return false;
+  if (blacklist.isBlacklisted(func.getName()))
     return false;
 
   instrumentFunctionEntry(func, hooks);

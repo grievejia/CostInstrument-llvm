@@ -28,16 +28,21 @@ Type* getCharPtrPtrType(const Module& m) {
   return PointerType::getUnqual(getCharPtrType(m));
 }
 
-Function* createFunctionWithArgType(const StringRef& name,
-                                    ArrayRef<Type*> argTypes, Module& module) {
+Function* getOrCreateFunctionWithArgType(const StringRef& name,
+                                         ArrayRef<Type*> argTypes,
+                                         Module& module) {
+  if (auto f = module.getFunction(name))
+    return f;
   auto funType =
       FunctionType::get(getVoidType(module), std::move(argTypes), false);
   return Function::Create(funType, GlobalValue::ExternalLinkage, name, &module);
 }
 
-Function* createFunctionWithArgRetType(const StringRef& name,
-                                       ArrayRef<Type*> argTypes, Type* retType,
-                                       Module& module) {
+Function* getOrCreateFunctionWithArgRetType(const StringRef& name,
+                                            ArrayRef<Type*> argTypes,
+                                            Type* retType, Module& module) {
+  if (auto f = module.getFunction(name))
+    return f;
   auto funType = FunctionType::get(retType, std::move(argTypes), false);
   return Function::Create(funType, GlobalValue::ExternalLinkage, name, &module);
 }
@@ -47,10 +52,11 @@ Function* createFunctionWithArgRetType(const StringRef& name,
 namespace costinstr {
 
 DynamicHooks::DynamicHooks(Module& module) {
-  costIncHook = createFunctionWithArgType("cost_inc", {}, module);
-  costShutdownHook = createFunctionWithArgType("exit_print_hook", {}, module);
-  atExit = createFunctionWithArgRetType("atexit", {costShutdownHook->getType()},
-                                        getIntType(module), module);
+  costIncHook = getOrCreateFunctionWithArgType("cost_inc", {}, module);
+  costShutdownHook =
+      getOrCreateFunctionWithArgType("exit_print_hook", {}, module);
+  atExit = getOrCreateFunctionWithArgRetType(
+      "atexit", {costShutdownHook->getType()}, getIntType(module), module);
 }
 
 Function* DynamicHooks::getCostIncHook() const {
