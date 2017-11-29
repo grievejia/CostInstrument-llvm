@@ -1,0 +1,19 @@
+---
+Language:        Cpp
+BasedOnStyle:  LLVM
+AccessModifierOffset: -2
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakTemplateDeclarations: true
+BreakBeforeBraces: Attach
+ColumnLimit: 80
+Cpp11BracedListStyle: true
+IndentCaseLabels: true
+IndentWidth: 2
+NamespaceIndentation: None
+PointerAlignment: Left
+SpaceBeforeAssignmentOperators: true
+Standard: Cpp11
+TabWidth: 2 
+UseTab: Never
