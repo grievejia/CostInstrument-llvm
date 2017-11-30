@@ -28,13 +28,16 @@ def check_files(input_paths):
         elif not (is_clang_source(path)  or is_llvm_source(path) or is_binary(path)):
             raise ValueError('File type "{}" not recognized for input file "{}"'.format(path.suffix, path))
 
-def compile_to_llvm(input_path, include_paths, tempdir):
+def compile_to_llvm(input_path, include_paths, macro_defs, tempdir):
     logging.info('Compiling {} to LLVM IR'.format(input_path))
     output_name = '{}/{}.bc'.format(tempdir, input_path.name)
     cmd = 'clang -emit-llvm -c -o {} {}'.format(output_name, input_path)
     if include_paths is not None:
         include_opts = ' '.join(['-I{}'.format(x) for x in include_paths])
         cmd += ' {}'.format(include_opts)
+    if macro_defs is not None:
+        macro_opts = ' '.join(['-D{}'.format(x) for x in macro_defs])
+        cmd += ' {}'.format(macro_opts)
     logging.debug('[CMD] {}'.format(cmd))
     cmd_result = subprocess.run(cmd, shell=True, check=True)
     return Path(output_name)
@@ -64,7 +67,7 @@ def run_clang_instr(args):
         obj_paths = [args.runtime]
         for filePath in args.input:
             if is_clang_source(filePath):
-                ir_path = compile_to_llvm(filePath, args.include, tempdir)
+                ir_path = compile_to_llvm(filePath, args.include, args.define, tempdir)
                 ir_paths.append(ir_path)
             elif is_llvm_source(filePath):
                 ir_paths.append(filePath)
@@ -87,6 +90,8 @@ def main():
                         default=Path(DEFAULT_LLVM_INSTR_PATH))
     parser.add_argument('-I', '--include', metavar='INCLUDE', type=str, nargs='*',
                         help='Additional include path for source compilation')
+    parser.add_argument('-D', '--define', metavar='MACRO', type=str, nargs='*',
+                        help='Additional macro definition for source compilation')
     parser.add_argument('-d', '--debug',
                         help="Print lots of debugging statements",
                         action="store_const", dest="loglevel", const=logging.DEBUG,
