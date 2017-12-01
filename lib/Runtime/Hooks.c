@@ -9,6 +9,6 @@ extern void cost_inc() { ++counter; }
 extern uint64_t cost_read() { return counter; }
 
 extern void exit_print_hook() {
-  printf("[COST] %llu\n", counter);
+  printf("[COST] %lu\n", counter);
   fflush(stdout);
 }
