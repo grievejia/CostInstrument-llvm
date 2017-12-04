@@ -74,7 +74,7 @@ def run_clang_instr(args):
             else:
                 obj_paths.append(filePath)
         instrumented_ir_paths = [run_llvm_instr(ir_path, args.llvm_instr, args.blacklist, tempdir) for ir_path in ir_paths]
-        link_files(obj_paths + instrumented_ir_paths, args.output)
+        link_files(instrumented_ir_paths + obj_paths, args.output)
 
 def main():
     parser = argparse.ArgumentParser(description='Clang instrument driver')
